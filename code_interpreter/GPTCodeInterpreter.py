@@ -62,17 +62,6 @@ class GPTCodeInterpreter(BaseCodeInterpreter):
             {"role": "assistant", "content": answer_fuse_str},
         ]
 
-    def close(self):
-        if self.nb and hasattr(self.nb, "close"):
-            try:
-                self.nb.close()
-            except Exception as e:
-                # Maybe log the exception for debugging
-                pass
-
-    def __del__(self):
-        self.close()
-
     @retry(
         stop_max_attempt_number=7,
         wait_exponential_multiplier=1000,
@@ -178,7 +167,6 @@ class GPTCodeInterpreter(BaseCodeInterpreter):
 
 
 if __name__ == "__main__":
-    # "plot 30days BTC price? using yfinance all so print current price"
     gpt_interpreter = GPTCodeInterpreter()
 
     answer = gpt_interpreter.chat("what is 77th fibonacci number?")
