@@ -37,6 +37,7 @@ class GPTCodeInterpreter(BaseCodeInterpreter):
         PRE_EXEC_CODE_OUT = self.nb.add_and_run(PRE_EXEC_CODE)
 
         self.console = Console()  # for printing output
+        self.stop_condition_met1, self.stop_condition_met2 = False, False
 
     def get_response_content(self):
         if self.response:
@@ -73,12 +74,14 @@ class GPTCodeInterpreter(BaseCodeInterpreter):
             messages=self.dialog,
             temperature=temperature,
             top_p=top_p,
+            max_tokens=1024,
             stream=True,
         )
 
         stop_string1 = "```python"
         stop_string2 = "```"
-        stop_condition_met1, stop_condition_met2 = False, False
+        stop_max_len = max(len(stop_string1), len(stop_string2))
+        self.stop_condition_met1, self.stop_condition_met2 = False, False
         in_code_block = False  # Flag to denote if we are inside a code block
         buffer = ""
 
@@ -86,24 +89,36 @@ class GPTCodeInterpreter(BaseCodeInterpreter):
             content = chunk["choices"][0].get("delta", {}).get("content")
             if content is not None:
                 buffer += content  # add received content to the buffer
-                yield (
-                    content,
-                    (stop_condition_met1, stop_condition_met2),
-                )  # yield received content
+
+                if len(buffer) > stop_max_len:
+                    buffer = buffer[-stop_max_len:]
 
                 if stop_string1 in buffer:
-                    stop_condition_met1 = True
+                    self.stop_condition_met1 = True
 
-                elif stop_condition_met1 and (stop_string2 in buffer):
-                    stop_condition_met2 = True
+                elif self.stop_condition_met1 and (stop_string2 in buffer):
+                    self.stop_condition_met2 = True
 
-                # You may want to clear or trim the buffer to manage memory usage.
-                if len(buffer) > 100:
-                    buffer = buffer[-100:]  # Keep the last 1000 characters
+                yield (
+                    content,
+                    (self.stop_condition_met1, self.stop_condition_met2),
+                )  # yield received content
 
                 # If the stop condition is met, break out of the loop
-                if stop_condition_met2:
+                if self.stop_condition_met2:
                     break
+
+    def print_dialog(self):
+        for dialog in self.dialog:
+            role = dialog["role"]
+            content = dialog["content"]
+
+            if role.lower() == "system":
+                self.console.print(Markdown(f"## SYSTEM_PROMPT\n\n{content}\n\n"))
+            elif role.lower() == "user":
+                self.console.print(Markdown(f"## 👤 User\n\n{content}\n"))
+            elif role.lower() == "assistant":
+                self.console.print(Markdown(f"## 🤖 Assistant\n\n{content}\n"))
 
     def chat(
         self,
@@ -140,28 +155,34 @@ class GPTCodeInterpreter(BaseCodeInterpreter):
                     code_blocks[0]
                 )
 
-                response_content = (
-                    f"{generated_text_local}\nExecution Result:\n{code_output}\n"
-                )
+                response_content = f"{generated_text_local}\n```Execution Result:\n{code_output}\n```\n"
                 self.console.print(
-                    f"```Execution Result:\n{code_output}\n```\n", style="code", end=""
+                    f"\n```Execution Result:\n{code_output}\n```\n",
+                    style="code",
+                    end="",
                 )
                 self.dialog.append({"role": "assistant", "content": response_content})
                 self.dialog.append({"role": "user", "content": CHATGPT_FEEDBACK_PROMPT})
 
             else:
                 if "<done>" in generated_text_local:
-                    generated_text_local = generated_text_local.split("<done>")[
+                    generated_text_local_refined = generated_text_local.split("<done>")[
                         0
                     ].strip()
+                    self.dialog.append(
+                        {"role": "assistant", "content": generated_text_local_refined}
+                    )
+                    break
+                else:
+                    self.dialog.append(
+                        {"role": "assistant", "content": generated_text_local}
+                    )
+                    self.dialog.append({"role": "user", "content": "go ahead"})
+                    continue
 
-                self.dialog.append(
-                    {"role": "assistant", "content": generated_text_local}
-                )
-                break
-
-        # make all steps looks like an one answer
+        # make all steps looks like an one answe
         self.clean_the_dialog_one_step(question=user_message)
+        self.print_dialog()
 
         return self.dialog
 
@@ -169,5 +190,8 @@ class GPTCodeInterpreter(BaseCodeInterpreter):
 if __name__ == "__main__":
     gpt_interpreter = GPTCodeInterpreter()
 
-    answer = gpt_interpreter.chat("what is 77th fibonacci number?")
+    answer = gpt_interpreter.chat(
+        "Using the `numpy` library, generate a 3x3 matrix with random integer values between 1 and 5, then find its determinant. If the determinant is a prime number, square it."
+    )
+
     gpt_interpreter.close()
