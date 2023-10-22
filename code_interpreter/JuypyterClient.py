@@ -22,7 +22,12 @@ class JupyterNotebook:
                 error_msg = re.sub(r"\x1b\[.*?m", "", error_msg)
                 outputs_only_str.append(error_msg)
 
-        return "\n".join(outputs_only_str).strip()
+        full_output_str = "\n".join(outputs_only_str).strip()
+        if len(full_output_str) > 1000:
+            full_output_str = (
+                f"{full_output_str[:333]}\n... skip ...\n{full_output_str[-333:]}"
+            )
+        return full_output_str
 
     def add_and_run(self, code_string):
         # This inner function will be executed in a separate thread
@@ -61,21 +66,34 @@ class JupyterNotebook:
         thread.start()
 
         # Wait for 10 seconds for the thread to finish
-        thread.join(timeout=10)
+        thread.join(timeout=60)
 
         # If the thread is still alive after 10 seconds, it's a timeout
         if thread.is_alive():
-            outputs = ["Timeout after 10 seconds"]
+            outputs = ["Timeout after 60 seconds"]
             error_flag = True
 
         return self.clean_output(outputs), error_flag
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+
     def close(self):
         """Shutdown the kernel."""
-        try:
-            self.km.shutdown_kernel()
-        except Exception as e:
-            # Log or print the exception if needed
-            pass
+        if self.km:
+            try:
+                # Try to shutdown the kernel gracefully
+                self.km.shutdown_kernel(now=True)
+            except Exception as e:
+                print(f"exception in jupyter close -> {e}")
+                if self.km.has_kernel:
+                    os.kill(
+                        self.km.kernel.pid, signal.SIGKILL
+                    )  # Forcefully kill the kernel process
+
         self.km = None
         self.kc = None
+        print(f"Jupyter Client Killed Successfully")

@@ -21,6 +21,7 @@ from prompt.chatgpt_prompt import *
 
 class GPTCodeInterpreter(BaseCodeInterpreter):
     def __init__(self, model="gpt-4"):
+        super().__init__()
         self.model = model
         self.dialog = [
             {
@@ -33,11 +34,13 @@ class GPTCodeInterpreter(BaseCodeInterpreter):
 
         openai.api_key = os.getenv("OPENAI_API_KEY")
 
-        self.nb = JupyterNotebook()
         PRE_EXEC_CODE_OUT = self.nb.add_and_run(PRE_EXEC_CODE)
 
         self.console = Console()  # for printing output
         self.stop_condition_met1, self.stop_condition_met2 = False, False
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        super().__exit__(exc_type, exc_value, traceback)
 
     def get_response_content(self):
         if self.response:
@@ -156,11 +159,12 @@ class GPTCodeInterpreter(BaseCodeInterpreter):
                 )
 
                 response_content = f"{generated_text_local}\n```Execution Result:\n{code_output}\n```\n"
-                self.console.print(
-                    f"\n```Execution Result:\n{code_output}\n```\n",
-                    style="code",
-                    end="",
-                )
+                if VERBOSE:
+                    self.console.print(
+                        f"\n```Execution Result:\n{code_output}\n```\n",
+                        style="code",
+                        end="",
+                    )
                 self.dialog.append({"role": "assistant", "content": response_content})
                 self.dialog.append({"role": "user", "content": CHATGPT_FEEDBACK_PROMPT})
 
@@ -182,7 +186,7 @@ class GPTCodeInterpreter(BaseCodeInterpreter):
 
         # make all steps looks like an one answe
         self.clean_the_dialog_one_step(question=user_message)
-        self.print_dialog()
+        # self.print_dialog() # for debug
 
         return self.dialog
 
