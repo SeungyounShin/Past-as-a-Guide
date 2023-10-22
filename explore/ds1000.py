@@ -8,6 +8,7 @@ from utils.utils import dialog_to_string, set_logger, extract_code_block
 from retrying import retry
 from tqdm import tqdm
 from rich.markdown import Markdown
+from rich import print
 
 AGENT_MATCHER = {"SelfDocAgent": SelfDocAgent}
 DS1000_ALL_TASKS = [
@@ -105,62 +106,76 @@ def run_ds1000(
     agent_config: Dict = {},
     tasks: List[str] = ["Pandas"],
     types: List[str] = ["Origin", "Semantic", "Difficult-Rewrite"],
-    logger=set_logger("./explore/ds1000.log"),
 ):
     # Check Validity
     if not set(tasks).issubset(DS1000_ALL_TASKS):
-        logger.error(f"Invalid tasks. Allowed values are {DS1000_ALL_TASKS}")
+        print(f"[red]Invalid tasks. Allowed values are {DS1000_ALL_TASKS}[/red]")
         return
 
     if not set(types).issubset(DS1000_ALL_TYPES):
-        logger.error(f"Invalid types. Allowed values are {DS1000_ALL_TYPES}")
+        print(f"[red]Invalid types. Allowed values are {DS1000_ALL_TYPES}[/red]")
         return
 
     # load ds1000
-    logger.info("🚀 Loading DS1000 start...")
+    print("🚀 [bold]Loading DS1000 start...[/bold]")
     ds_data = automoatic_load_ds1000()
-    logger.info("✅ Loading DS1000 done!!")
+    print("✅ [bold]Loading DS1000 done!![/bold]")
 
     # running task and types
     for task in tasks:
-        logger.info(f"# Starting [{task}]")
+        print(f"# Starting [{task}]")
         for perturb_type in types:
-            logger.info(f"## Perturb type [{perturb_type}]")
+            print(f"## Perturb type [{perturb_type}]")
 
             correct, idx = 0, 0
             for counter, problem in enumerate(tqdm(ds_data[task])):
                 problem_perturbation_type = problem["perturbation_type"]
                 problem_text = problem["prompt"]
-                """
-                    dict_keys(['lib', 'test_type', 'test_case_cnt', 'perturbation_type', 
-                    'perturbation_origin_id', 'reference_code', 'test_code', 'code_context', 
-                    'test_generate_pickle', 'prompt', 'ans', 'source_url'])
-                """
                 if problem_perturbation_type != perturb_type:
-                    logger.info(
+                    print(
                         f"Problem Number {counter}[{problem_perturbation_type}] skipped "
                     )
                     continue
-                logger.info(
+
+                if os.path.exists(
+                    f"./memory/{agent}/{agent_config['init']['model']}/{task}_{perturb_type}_{counter}_True.json"
+                ):
+                    correct += 1
+                    idx += 1
+                    print(
+                        f"Problem Number {counter}[{problem_perturbation_type}][green][correct][/green] **already evaluated** so skipped "
+                    )
+                    continue
+                elif os.path.exists(
+                    f"./memory/{agent}/{agent_config['init']['model']}/{task}_{perturb_type}_{counter}_False.json"
+                ):
+                    idx += 1
+                    print(
+                        f"Problem Number {counter}[{problem_perturbation_type}][red][wrong][/red] **already evaluated** so skipped "
+                    )
+                    continue
+
+                print(
                     f"[green]Problem Number {counter}[{problem_perturbation_type}] Start! [/green]"
                 )
                 idx += 1
 
                 # agent initalized for every time ( for jupyter notebook using reason )
-                with AGENT_MATCHER[agent]() as agent_instance:
+                with AGENT_MATCHER[agent](**agent_config["init"]) as agent_instance:
                     formatted_question = format_ds1000_question(problem_text)
                     dialog = agent_instance.step(
                         instruction=formatted_question,
                         VERBOSE=False,
-                        **agent_config,
+                        **agent_config["step"],
                     )
+                print(
+                    f"agent done solving the task...\n[blue]Now extracting the infilling code lines[/blue]"
+                )
 
                 # extract answer for pair comparison
                 generated_code = answer_extractor(dialog)
-                logger.info(f"Generated code :\n```python\n{generated_code}\n```")
-                logger.info(
-                    f"\tAgent generated the solution.\n\tStart testing the solution..."
-                )
+                print(f"Solution code extracted :\n```python\n{generated_code}\n```")
+                print(f"[bold]Start testing the solution...[/bold]")
                 is_correct = ds_data[task][counter].test(generated_code)
 
                 agent_instance.save_traj(
@@ -168,19 +183,20 @@ def run_ds1000(
                 )
 
                 correct = correct + 1 if is_correct else correct
-                logger.info(
+                print(
                     f"[bold blue]acc:[/bold blue] {correct}/{idx} = [bold green]{correct/idx:.2f}[/bold green]"
                 )
 
 
 if __name__ == "__main__":
-    from utils.utils import set_logger
-
-    logger = set_logger("./explore/ds1000.log")
-
     agent_config = {
-        "USE_RETRIEVE": False,
-        "USE_ENCODE": False,
+        "init": {
+            "model": "gpt-4-0613",
+        },
+        "step": {
+            "USE_RETRIEVE": False,
+            "USE_ENCODE": False,
+        },
     }
 
     run_ds1000(
@@ -188,5 +204,4 @@ if __name__ == "__main__":
         agent_config=agent_config,
         tasks=["Pandas"],
         types=["Difficult-Rewrite"],
-        logger=logger,
     )
