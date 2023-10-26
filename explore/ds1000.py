@@ -98,6 +98,7 @@ def answer_extractor(dialog: List[Dict]):
     extracted = response["choices"][0]["message"]["content"]
     code_only = extract_code_block(extracted)
 
+    print("[bold]Answer Extracted...[/bold]")
     return code_only
 
 
@@ -120,6 +121,9 @@ def run_ds1000(
     print("🚀 [bold]Loading DS1000 start...[/bold]")
     ds_data = automoatic_load_ds1000()
     print("✅ [bold]Loading DS1000 done!![/bold]")
+    
+    # setup memory
+    memory_bank = None
 
     # running task and types
     for task in tasks:
@@ -160,14 +164,19 @@ def run_ds1000(
                 )
                 idx += 1
 
-                # agent initalized for every time ( for jupyter notebook using reason )
-                with AGENT_MATCHER[agent](**agent_config["init"]) as agent_instance:
-                    formatted_question = format_ds1000_question(problem_text)
-                    dialog = agent_instance.step(
-                        instruction=formatted_question,
-                        VERBOSE=False,
-                        **agent_config["step"],
-                    )
+                agent_instance = AGENT_MATCHER[agent](**agent_config["init"], memory = memory_bank)
+                formatted_question = format_ds1000_question(problem_text)
+                dialog = agent_instance.step(
+                    instruction=formatted_question,
+                    **agent_config["step"],
+                )
+                # resuse memory bank
+                if memory_bank is None:
+                    memory_bank = agent_instance.get_memory()
+                    memory_bank.update_memory()
+                    
+                agent_instance.close()
+
                 print(
                     f"agent done solving the task...\n[blue]Now extracting the infilling code lines[/blue]"
                 )
@@ -194,8 +203,9 @@ if __name__ == "__main__":
             "model": "gpt-4-0613",
         },
         "step": {
-            "USE_RETRIEVE": False,
-            "USE_ENCODE": False,
+            "USE_RETRIEVE": True,
+            "USE_ENCODE": True,
+            "VERBOSE": False,
         },
     }
 

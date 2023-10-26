@@ -1,5 +1,9 @@
 # .gitignore
 
+# logging
+*.log
+explore/*.log
+
 # Ignore .env file
 .env
 
@@ -19,3 +23,9 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+
+# exec file for test
+exec.py
+
+
+memory/*

@@ -9,4 +9,6 @@ Need conclusion to question only in text (Do not leave result part alone).
 If no further generation is needed, just say <done>.
 """
 
-PRE_EXEC_CODE = ""
+PRE_EXEC_CODE = """
+# import pandas as pd
+"""

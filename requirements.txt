@@ -2,3 +2,4 @@ python-dotenv
 openai
 jupyter_client
 rich
+retrying

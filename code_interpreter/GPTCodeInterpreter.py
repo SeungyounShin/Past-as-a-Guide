@@ -109,7 +109,7 @@ class GPTCodeInterpreter(BaseCodeInterpreter):
 
                 # If the stop condition is met, break out of the loop
                 if self.stop_condition_met2:
-                    break
+                    return
 
     def print_dialog(self):
         for dialog in self.dialog:
