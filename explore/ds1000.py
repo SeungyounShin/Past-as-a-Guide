@@ -9,6 +9,7 @@ from retrying import retry
 from tqdm import tqdm
 from rich.markdown import Markdown
 from rich import print
+import gc
 
 AGENT_MATCHER = {"SelfDocAgent": SelfDocAgent}
 DS1000_ALL_TASKS = [
@@ -121,7 +122,7 @@ def run_ds1000(
     print("🚀 [bold]Loading DS1000 start...[/bold]")
     ds_data = automoatic_load_ds1000()
     print("✅ [bold]Loading DS1000 done!![/bold]")
-    
+
     # setup memory
     memory_bank = None
 
@@ -164,7 +165,9 @@ def run_ds1000(
                 )
                 idx += 1
 
-                agent_instance = AGENT_MATCHER[agent](**agent_config["init"], memory = memory_bank)
+                agent_instance = AGENT_MATCHER[agent](
+                    **agent_config["init"], memory=memory_bank
+                )
                 formatted_question = format_ds1000_question(problem_text)
                 dialog = agent_instance.step(
                     instruction=formatted_question,
@@ -174,8 +177,9 @@ def run_ds1000(
                 if memory_bank is None:
                     memory_bank = agent_instance.get_memory()
                     memory_bank.update_memory()
-                    
+
                 agent_instance.close()
+                gc.collect()
 
                 print(
                     f"agent done solving the task...\n[blue]Now extracting the infilling code lines[/blue]"
@@ -205,7 +209,8 @@ if __name__ == "__main__":
         "step": {
             "USE_RETRIEVE": True,
             "USE_ENCODE": True,
-            "VERBOSE": False,
+            "ORGANIZE_MEMORY": True,
+            "VERBOSE": True,
         },
     }
 

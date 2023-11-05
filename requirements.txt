@@ -3,3 +3,5 @@ openai
 jupyter_client
 rich
 retrying
+tenacity
+pyzmq

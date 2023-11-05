@@ -12,6 +12,30 @@ from retrying import retry
 import requests
 import openai
 import numpy as np
+import time
+
+from openai.error import (
+    Timeout,
+    APIError,
+    APIConnectionError,
+    RateLimitError,
+    ServiceUnavailableError,
+)
+
+
+def openai_should_retry(e):
+    """Determine whether the exception should trigger a retry."""
+    # Add any other exception types to this tuple as necessary.
+    return isinstance(
+        e,
+        (
+            Timeout,
+            # APIError,
+            # APIConnectionError,
+            RateLimitError,
+            # ServiceUnavailableError,
+        ),
+    )
 
 
 def remove_string(s):
