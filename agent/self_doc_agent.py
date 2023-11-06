@@ -155,35 +155,44 @@ class MemoryBank:
             self.console.print(f"No memory to encode (no retrieved memory exists)")
             return
 
-        operation = retrospection_dict["operation"]
+        # "action": None,
+        #    "title": None,
+        #    "description": None,
+        #    "location": None,
+
+        operation = retrospection_dict["action"]
+        if operation is str:
+            operation = operation.lower()
+        else:
+            operation = "none"
         if len(init_retrieved) == 0:
-            operation = "<new>"  # when no retrieved memory it should be new
-        if (retrospection_dict["query"] is None) or (
-            len(retrospection_dict["query"]) == 0
+            operation = "<add>"  # when no retrieved memory it should be new
+        if (retrospection_dict["title"] is None) or (
+            len(retrospection_dict["title"]) == 0
         ):
             # query is too short (no content)
             return False
-        query_embedding = get_embedding_ada(retrospection_dict["query"])
+        query_embedding = get_embedding_ada(retrospection_dict["title"])
 
         # memory encoding by operation
-        if operation == "<new>":
+        if "add" in operation:
             # adding new memory
             memory = {
                 "id": len(self.memories) + 1,
-                "query": retrospection_dict["query"],
-                "retrospection": retrospection_dict["retrospection"],
+                "query": retrospection_dict["title"],
+                "retrospection": retrospection_dict["description"],
             }
-            self.console.print(f"Memory Encoded : [bold][green]<new>[/green][bold]")
+            self.console.print(f"Memory Encoded : [bold][green]<Add>[/green][bold]")
             self.save_memory(memory, query_embedding)
             self.update_memory()
             return True
-        elif operation == "<revise>":
+        elif "revise" in operation:
             # revise initial retrieved memory
             ## save revised memory (in disk)
             memory = {
-                "id": init_retrieved[0]["id"],
-                "query": retrospection_dict["query"],
-                "retrospection": retrospection_dict["retrospection"],
+                "id": init_retrieved[0]["location"],
+                "query": retrospection_dict["title"],
+                "retrospection": retrospection_dict["description"],
             }
             self.save_memory(
                 memory,
@@ -194,28 +203,6 @@ class MemoryBank:
             self.console.print(f"Memory Encoded : [bold][green]<revised>[/green][bold]")
             memory["embedding"] = query_embedding
             self.update_memory_by_id(memory)
-
-        elif operation == "<merge>":
-            # merge not retrieved but similar k-th retrieved memory
-            merge_id = 1
-            memory = {
-                "id": init_retrieved[merge_id]["id"],
-                "query": retrospection_dict["query"],
-                "retrospection": retrospection_dict["retrospection"],
-            }
-            self.save_memory(
-                memory,
-                query_embedding,
-                memory_id=init_retrieved[merge_id]["id"],
-            )
-            ## update working memory (in RAM)
-            memory["embedding"] = query_embedding
-            self.update_memory_by_id(memory)
-            self.console.print(f"Memory Encoded : [bold][green]<merge>[/green][bold]")
-
-        elif operation == "<none>":
-            # not doing anything
-            return False
         else:
             # not permitted memory operation
             self.console.print(f"Memory Encoded : [bold][green]<none>[/green][bold]")
@@ -335,41 +322,7 @@ class SelfDocAgent:
             json.dump(save_dict, f, indent=4, ensure_ascii=False)
 
     @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(10))
-    def get_retrospection(self, dialog: List[Dict], VERBOSE: bool = True):
-        full_traj = dialog_to_string(dialog, pretty=True)
-
-        response = openai.ChatCompletion.create(
-            model=self.model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are retrospectionGPT. \n\nAfter each USER and ASSISTANT interaction, perform the following:\n\n1. Clearly describe the core problem that the user presented.\n2. Evaluate the solution you provided. Was it effective? Why or why not?\n3. If the problem required multiple attempts, identify the attempt where the correct solution was provided.\n\nFinally, summarize your insights as follows:\n```retrospection\n(e.g., For downloading a video from YouTube, utilize `yt-dlp`. Ensure to indicate the desired format in `yt-dlp` if the user has specified one.)\n```\n",
-                },
-                {"role": "user", "content": f"{full_traj}"},
-            ],
-            temperature=0.1,
-            max_tokens=1024,
-            top_p=0.9,
-            frequency_penalty=0,
-            presence_penalty=0,
-        )["choices"][0]["message"]["content"]
-
-        query, retrospection = self.extract_query_and_key(response)
-
-        if VERBOSE:
-            self.console.print(Markdown(f"## Full Retrospection : \n{response}\n\n"))
-            self.console.print(
-                Markdown(
-                    f"## Retrospection\n\nQuery:\n{query}\n\nRetrospection:\n{retrospection}"
-                )
-            )
-        return {
-            "query": query if query else "",
-            "retrospection": retrospection if retrospection else "",
-        }
-
-    # @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(10))
-    def get_retrospection_v2(
+    def get_retrospection(
         self,
         dialog: List[Dict],
         init_retrieved: Optional[List] = None,
@@ -406,7 +359,7 @@ class SelfDocAgent:
             messages=[
                 {
                     "role": "system",
-                    "content": 'Given the provided AGENT_LOG, prior experiences, and extra memories, you are tasked with deciding the best memory encoding operation to use. \n\nYour output should consist of the following:\n\n1. Reflect upon the interaction in the <agent log> and evaluate if there is any newfound knowledge or insights that were not previously captured in <From prior experience>. Additionally, assess whether any information from <Extra Memories not considered> should be integrated or utilized for a more comprehensive understanding.\n\n\n2. **Memory Encoding Operation Choice**:\n   - `<new>`: If the information from "From prior experience" is not deemed helpful and a new retrospection is needed.\n   - `<revise>`: If there\'s a discovered advanced way of solving the tasks, so revise the query and retrospection of "From prior experience".\n   - `<merge>`: If neither "From prior experience" nor a specific memory from "Extra memories not chosen" is helpful, then merge with an unused memory.\n   - `<none>`: If the previous retrospections are helpful and no further improvement is required.\n\n3. **Action Based on Operation**:\n\n   - For `<new>`, provide a new query and retrospection.\n   - For `<revise>`, give the revised query and retrospection.\n   - For `<merge>`, specify which memory (m-th memory) from "Extra memories not chosen" is used and the merged retrospection.\n   - If `<none>`, specify that no further action is needed.\n\nMake sure to encapsulate \n```query\ncontent\n```\n```retrospection\ncontent\n```',
+                    "content": "You are an AI specialist, tasked with crafting concise retrospections from provided problem solutions. Your aim is to distill the essence of the problem and its solution, capturing the crux in just a few pivotal code lines. Here's how you should proceed:\n\n**Validation**: Your role here is to compare the current problem-solving approach, as described in the agent log, with the previously known solutions from prior experience. The objective is to determine if the current approach provides new knowledge or insights not present in the prior experiences. Also, assess if the solution relates to or overlaps with the extra memories that were initially deemed unrelated. Determine if the agent found new, valuable information during the problem-solving process or if there was a critical turning point where failure eventually led to a solution.\n\n**Action Decision**: Based on the validation, decide whether to:\n   - **Merge** the new insight with an existing memory or \n   - **Add** it as a new, standalone entry.\n   \nIndicate your choice as:\n```action\nMerge or Add\n```\n\n**Retrospection Crafting**:\n\na. Construct a succinct title that captures the core of the problem:\n```title\n(Concise Title)\n```\n\nb. Articulate a brief description. This should highlight the unique aspects of the solution, emphasizing any newfound insights. Incorporate the 1 to 3 pivotal code lines that were crucial to the solution within the description:\n```description\n(Brief Summary with Integrated Key Code Snippets)\n```\n\nc. If the decision is to merge, pinpoint the memory position (m) where the current insight is most related:\n```location\nm\n```\nIf the decision is to add as a new entry, indicate with `-1`.\n",
                 },
                 {"role": "user", "content": full_prompt},
             ],
@@ -417,55 +370,56 @@ class SelfDocAgent:
             presence_penalty=0,
         )["choices"][0]["message"]["content"]
 
-        op_choosen, query, retrospection = self.extract_retrospect(response)
+        extracted = self.extract_retrospect(response)
 
         if VERBOSE:
-            self.console.print(Markdown(f"## Full Retrospection : \n{response}\n\n"))
+            self.console.print(Markdown(f"## Full Retrospection :\n\n"))
+            self.console.print(Markdown(f"### Memory Operation :\n\n"))
+            self.console.print(Markdown(f"**{extracted['action']}**"))
+            self.console.print(Markdown(f"### Title :\n\n"))
+            self.console.print(Markdown(f"**{extracted['title']}**"))
+            self.console.print(Markdown(f"### Retrospection :\n\n"))
+            self.console.print(Markdown(f"**{extracted['description']}**"))
 
-        return {
-            "operation": op_choosen if op_choosen else "<none>",
-            "query": query if query else "",
-            "retrospection": retrospection if retrospection else "",
+        return extracted
+
+    def extract_retrospect(self, input_str: str):
+        # Split by block delimiters
+        blocks = {
+            "action": None,
+            "title": None,
+            "description": None,
+            "location": None,
         }
 
-    def extract_query_and_key(response: str):
-        # Extract retrospection content including nested content
-        retrospection_pattern = r"```retrospection((?:[^`]+|`+(?!``))*)```"
-        retrospection_match = re.search(retrospection_pattern, response, re.DOTALL)
-        retrospection_content = (
-            retrospection_match.group(1).strip() if retrospection_match else None
-        )
+        # Extract 'action' content
+        if "```action" in input_str:
+            blocks["action"] = (
+                input_str.split("```action")[1].split("```")[0].strip().lower()
+            )
 
-        # Extract the user's core problem content
-        core_problem_pattern = r"1\.\s(.*?)(\.|\n|$)"
-        core_problem_match = re.search(core_problem_pattern, response)
-        core_problem_content = (
-            core_problem_match.group(1).strip() if core_problem_match else None
-        )
+        # Extract 'title' content
+        if "```title" in input_str:
+            blocks["title"] = input_str.split("```title")[1].split("```")[0].strip()
 
-        return core_problem_content, retrospection_content
+        # Extract 'description' content
+        if "```description" in input_str:
+            desc_parts = input_str.split("```description")
+            description_content = desc_parts[1]
+            description_content = description_content.split("```location")[0].split(
+                "```"
+            )
+            description_text = "```".join(description_content[:-1])
 
-    def extract_retrospect(self, text: str):
-        ops = ["<merge>", "<new>", "<none>", "<revise>"]
-        op_choosen = "<none>"
-        op_num = 999999
-        for op in ops:
-            _op_num = text.find(op)
-            if (_op_num >= 0) and (_op_num < op_num):
-                op_num = _op_num
-                op_choosen = op
+            blocks["description"] = description_text.strip()
 
-        query_match = re.search(r"query\r?\n(.*?)\r?\n", text, re.DOTALL)
-        retrospection_match = re.search(
-            r"retrospection\r?\n(.*?)\r?\n", text, re.DOTALL
-        )
+        # Extract 'location' content
+        if "```location" in input_str:
+            blocks["location"] = (
+                input_str.split("```location")[1].split("```")[0].strip()
+            )
 
-        query = query_match.group(1).strip() if query_match else None
-        retrospection = (
-            retrospection_match.group(1).strip() if retrospection_match else None
-        )
-
-        return (op_choosen, query, retrospection)
+        return blocks
 
     def step(
         self,
@@ -519,7 +473,7 @@ class SelfDocAgent:
 
         # step3 : encode it's experience
         if USE_ENCODE:
-            retrospection_dict = self.get_retrospection_v2(
+            retrospection_dict = self.get_retrospection(
                 dialog=self.llm_interpreter.dialog,
                 init_retrieved=retrieved,
                 VERBOSE=VERBOSE,
@@ -537,7 +491,46 @@ if __name__ == "__main__":
     agent = SelfDocAgent()
 
     problem_example = """
-Can you draw cute cat for me? with stable diffusion?
+Problem:
+I have a dataset :
+id    url     keep_if_dup
+1     A.com   Yes
+2     A.com   Yes
+3     B.com   No
+4     B.com   No
+5     C.com   No
+
+
+I want to remove duplicates, i.e. keep first occurence of "url" field, BUT  keep duplicates if the field "keep_if_dup" is YES.
+Expected output :
+id    url     keep_if_dup
+1     A.com   Yes
+2     A.com   Yes
+3     B.com   No
+5     C.com   No
+
+
+What I tried :
+Dataframe=Dataframe.drop_duplicates(subset='url', keep='first')
+
+
+which of course does not take into account "keep_if_dup" field. Output is :
+id    url     keep_if_dup
+1     A.com   Yes
+3     B.com   No
+5     C.com   No
+
+
+A:
+```python
+import pandas as pd
+
+
+df = pd.DataFrame({'url': ['A.com', 'A.com', 'A.com', 'B.com', 'B.com', 'C.com', 'B.com'],
+                   'keep_if_dup': ['Yes', 'Yes', 'No', 'No', 'No', 'No', 'Yes']})
+<Fill Solution Code>
+print(result)
+```
 
 """
 
@@ -547,7 +540,7 @@ Can you draw cute cat for me? with stable diffusion?
         USE_ENCODE=True,
         ORGANIZE_MEMORY=True,
         VERBOSE=True,
-        MULTITURN=True,
+        MULTITURN=False,
     )
 
     agent.save_traj("stablediffusion_1")

@@ -5,6 +5,7 @@ import asyncio
 from jupyter_client import KernelManager
 from weakref import finalize
 
+
 class JupyterNotebook:
     def __init__(self):
         self.lock = asyncio.Lock()
@@ -78,7 +79,9 @@ class JupyterNotebook:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            loop.run_until_complete(self.run_code_async(code_string, outputs, error_flag))
+            loop.run_until_complete(
+                self.run_code_async(code_string, outputs, error_flag)
+            )
         finally:
             loop.close()
 
@@ -99,7 +102,9 @@ class JupyterNotebook:
         if self.km:
             try:
                 # Use the internal kernel attribute to get its pid
-                kernel_pid = self.km._kernel.pid if hasattr(self.km, "_kernel") else None
+                kernel_pid = (
+                    self.km._kernel.pid if hasattr(self.km, "_kernel") else None
+                )
                 if kernel_pid:  # Only if the kernel's pid is found
                     os.kill(kernel_pid, signal.SIGKILL)
                 else:
@@ -131,11 +136,11 @@ if __name__ == "__main__":
 
     notebook = JupyterNotebook()
     out = notebook.add_and_run("a=1\nb=2")
-    print(out) # ("", False)
+    print(out)  # ("", False)
     out = notebook.add_and_run("a+b")
-    print(out) # ("3", False)
-    gc.collect() 
-    
+    print(out)  # ("3", False)
+    gc.collect()
+
     # solution for problem in jupyter notebook
     """
     # upgrade all related packages

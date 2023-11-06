@@ -8,6 +8,8 @@ from .JuypyterClient import JupyterNotebook
 from .BaseCodeInterpreter import BaseCodeInterpreter
 from rich.console import Console
 from rich.markdown import Markdown
+from rich.table import Table
+import tiktoken
 from utils.utils import *
 
 import openai
@@ -38,6 +40,11 @@ class GPTCodeInterpreter(BaseCodeInterpreter):
 
         self.console = Console()  # for printing output
         self.stop_condition_met1, self.stop_condition_met2 = False, False
+
+        # for token counting
+        self.tokenizer = tiktoken.get_encoding("cl100k_base")
+        self.tokenizer = tiktoken.encoding_for_model(self.model)
+        self.all_tok_in, self.all_tok_gen = 0, 0
 
     def __exit__(self, exc_type, exc_value, traceback):
         super().__exit__(exc_type, exc_value, traceback)
@@ -80,6 +87,8 @@ class GPTCodeInterpreter(BaseCodeInterpreter):
             max_tokens=1024,
             stream=True,
         )
+
+        self.all_tok_in += len(self.tokenizer.encode(dialog2rawtext(self.dialog)))
 
         stop_string1 = "```python"
         stop_string2 = "```"
@@ -141,6 +150,7 @@ class GPTCodeInterpreter(BaseCodeInterpreter):
             generated_text_local = ""
             for char, cond in self.ChatCompletion(temperature=temperature, top_p=top_p):
                 generated_text_local += char
+                self.all_tok_gen += len(self.tokenizer.encode(char))  # for token count
 
                 if VERBOSE:
                     if cond[0]:
@@ -187,6 +197,14 @@ class GPTCodeInterpreter(BaseCodeInterpreter):
         # make all steps looks like an one answe
         self.clean_the_dialog_one_step(question=user_message)
         # self.print_dialog() # for debug
+
+        if VERBOSE:
+            self.console.print("\n")
+            table = Table(show_header=True, header_style="bold magenta")
+            table.add_column("all_tok_in", style="dim", width=12)
+            table.add_column("all_tok_gen", style="dim", width=12)
+            table.add_row(str(self.all_tok_in), str(self.all_tok_gen))
+            self.console.print(table)
 
         return self.dialog
 

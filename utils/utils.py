@@ -62,6 +62,13 @@ def dialog_to_string(
     return return_string
 
 
+def dialog2rawtext(dialog):
+    text = ""
+    for m in dialog:
+        text += m["content"]
+    return text
+
+
 def extract_code_block(text):
     pattern = r"```python\n(.*?)\n```"
     match = re.search(pattern, text, re.DOTALL)
