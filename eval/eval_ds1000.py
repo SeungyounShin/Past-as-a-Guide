@@ -3,7 +3,7 @@ import re
 from typing import List, Dict
 from agent.self_doc_agent import SelfDocAgent
 
-import openai
+from openai import OpenAI
 from utils.utils import dialog_to_string, set_logger, extract_code_block
 from retrying import retry
 from tqdm import tqdm
@@ -26,7 +26,7 @@ DS1000_ALL_TYPES = ["Surface", "Origin", "Semantic", "Difficult-Rewrite"]
 
 def automoatic_load_ds1000():
     root_path = os.path.abspath("./")
-    DS1000_abs_path = os.path.join(root_path, "explore/DS-1000")
+    DS1000_abs_path = os.path.join(root_path, "eval/DS-1000")
     sys.path.append(DS1000_abs_path)
     from ds1000 import DS1000Dataset
 
@@ -72,7 +72,8 @@ def format_ds1000_question(question: str) -> str:
 )
 def answer_extractor(dialog: List[Dict]):
     full_traj = dialog_to_string(dialog, pretty=True)
-    response = openai.ChatCompletion.create(
+    answer_extract_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    response = answer_extract_client.chat.completions.create(
         model="gpt-4",
         messages=[
             {
@@ -85,7 +86,7 @@ def answer_extractor(dialog: List[Dict]):
             },
             {
                 "role": "assistant",
-                "content": "The code to we putted in  <Fill Solution Code>    is\n```python\ndf.reindex(List)\n```               ",
+                "content": "The code to put in  <Fill Solution Code> is\n```python\ndf.reindex(List)\n```",
             },
             {"role": "user", "content": f"{full_traj}"},
         ],
@@ -95,9 +96,9 @@ def answer_extractor(dialog: List[Dict]):
         frequency_penalty=0,
         presence_penalty=0,
     )
+    del answer_extract_client
 
-    extracted = response["choices"][0]["message"]["content"]
-    code_only = extract_code_block(extracted)
+    code_only = extract_code_block(response.choices[0].message.content)
 
     print("[bold]Answer Extracted...[/bold]")
     return code_only
@@ -150,6 +151,9 @@ def run_ds1000(
                     print(
                         f"Problem Number {counter}[{problem_perturbation_type}][green][correct][/green] **already evaluated** so skipped "
                     )
+                    print(
+                        f"[bold blue]acc:[/bold blue] {correct}/{idx} = [bold green]{correct/idx:.2f}[/bold green]"
+                    )
                     continue
                 elif os.path.exists(
                     f"./memory/{agent}/{agent_config['init']['model']}/{task}_{perturb_type}_{counter}_False.json"
@@ -157,6 +161,9 @@ def run_ds1000(
                     idx += 1
                     print(
                         f"Problem Number {counter}[{problem_perturbation_type}][red][wrong][/red] **already evaluated** so skipped "
+                    )
+                    print(
+                        f"[bold blue]acc:[/bold blue] {correct}/{idx} = [bold green]{correct/idx:.2f}[/bold green]"
                     )
                     continue
 
@@ -204,12 +211,12 @@ def run_ds1000(
 if __name__ == "__main__":
     agent_config = {
         "init": {
-            "model": "gpt-4-0613",
+            "model": "gpt-4",
         },
         "step": {
-            "USE_RETRIEVE": True,
-            "USE_ENCODE": True,
-            "ORGANIZE_MEMORY": True,
+            "USE_RETRIEVE": False,
+            "USE_ENCODE": False,
+            "ORGANIZE_MEMORY": False,
             "VERBOSE": True,
         },
     }
@@ -217,6 +224,8 @@ if __name__ == "__main__":
     run_ds1000(
         agent="SelfDocAgent",
         agent_config=agent_config,
-        tasks=["Pandas"],
-        types=["Difficult-Rewrite"],
+        tasks=DS1000_ALL_TASKS,
+        types=[
+            "Difficult-Rewrite"
+        ],  # ["Surface", "Origin", "Semantic", "Difficult-Rewrite"]
     )

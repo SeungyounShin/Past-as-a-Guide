@@ -10,17 +10,9 @@ import sys
 import os
 from retrying import retry
 import requests
-import openai
+from openai import OpenAI
 import numpy as np
 import time
-
-from openai.error import (
-    Timeout,
-    APIError,
-    APIConnectionError,
-    RateLimitError,
-    ServiceUnavailableError,
-)
 
 
 def openai_should_retry(e):
@@ -110,19 +102,10 @@ def set_logger(log_path: str = "application.log") -> logging.Logger:
     wait_exponential_max=10000,
 )
 def get_embedding_ada(text: str) -> np.array:
-    headers = {
-        "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}",
-        "Content-Type": "application/json",
-    }
-    payload = {"input": text, "model": "text-embedding-ada-002"}
-
-    response = requests.post(
-        "https://api.openai.com/v1/embeddings", headers=headers, json=payload
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    res = (
+        client.embeddings.create(input=[text], model="text-embedding-ada-002")
+        .data[0]
+        .embedding
     )
-
-    if response.status_code != 200:
-        raise Exception(
-            f"Request failed with status {response.status_code}\n\t{response.text}"
-        )
-
-    return np.array(response.json()["data"][0]["embedding"])
+    return np.array(res)

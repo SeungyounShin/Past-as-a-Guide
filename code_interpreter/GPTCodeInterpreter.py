@@ -12,7 +12,7 @@ from rich.table import Table
 import tiktoken
 from utils.utils import *
 
-import openai
+from openai import OpenAI
 from retrying import retry
 from dotenv import load_dotenv
 
@@ -25,6 +25,7 @@ class GPTCodeInterpreter(BaseCodeInterpreter):
     def __init__(self, model="gpt-4"):
         super().__init__()
         self.model = model
+        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         self.dialog = [
             {
                 "role": "system",
@@ -34,8 +35,6 @@ class GPTCodeInterpreter(BaseCodeInterpreter):
 
         self.response = None
 
-        openai.api_key = os.getenv("OPENAI_API_KEY")
-
         PRE_EXEC_CODE_OUT = self.nb.add_and_run(PRE_EXEC_CODE)
 
         self.console = Console()  # for printing output
@@ -44,6 +43,7 @@ class GPTCodeInterpreter(BaseCodeInterpreter):
         # for token counting
         self.tokenizer = tiktoken.get_encoding("cl100k_base")
         self.tokenizer = tiktoken.encoding_for_model(self.model)
+
         self.all_tok_in, self.all_tok_gen = 0, 0
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -79,7 +79,7 @@ class GPTCodeInterpreter(BaseCodeInterpreter):
         wait_exponential_max=10000,
     )
     def ChatCompletion(self, temperature: float = 0.1, top_p: float = 1.0):
-        dialog_stream = openai.ChatCompletion.create(
+        dialog_stream = self.client.chat.completions.create(
             model=self.model,
             messages=self.dialog,
             temperature=temperature,
@@ -98,7 +98,7 @@ class GPTCodeInterpreter(BaseCodeInterpreter):
         buffer = ""
 
         for chunk in dialog_stream:
-            content = chunk["choices"][0].get("delta", {}).get("content")
+            content = chunk.choices[0].delta.content
             if content is not None:
                 buffer += content  # add received content to the buffer
 

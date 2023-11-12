@@ -1,14 +1,16 @@
 from code_interpreter.GPTCodeInterpreter import GPTCodeInterpreter
 from utils.utils import *
-
 import os, sys, json
+
+prj_root_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 import io
 from datetime import datetime
 from tqdm import tqdm
 from typing import List, Dict, Optional
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 import copy
-import openai
+from openai import OpenAI
 
 from rich.console import Console
 from rich.markdown import Markdown
@@ -59,57 +61,6 @@ class MemoryBank:
 
         return False
 
-    @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(30))
-    def memory_organizer(self, prompt: str):
-        response = openai.ChatCompletion.create(
-            model=self.organizer,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are an AI specialist, streamlining solutions by comparing a current problem's retrospection with archival memories. Given the recent problem retrospection and related past memories, follow these steps:\n\n1. **Assessment**: Contrast the current retrospection with the supplied memories. Pinpoint the singular most similar memory to the ongoing problem.\n2. **Validation**: Ascertain if the present retrospection introduces novel or enhanced information compared to the selected memory.\n3. **Enhancement & Clarification**: If the current retrospection proves more advanced, amalgamate this newfound knowledge into the chosen memory. Subsequently, unambiguously declare if the resulting retrospection will supersede the previous one or be annexed as a distinct new entry. Ensure to encapsulate the final retrospection with:\n```retrospection\n(content)\n```\nMoreover, indicate the placement for the enhanced retrospection (if not being added, simply state `-1`) using:\n```choosen\nm\n```\nif m is not -1 then also adjust the query of m of <3 similar memories>\n```query-rewrite\n(content)\n```",
-                },
-                {
-                    "role": "user",
-                    "content": f"{prompt}",
-                },
-            ],
-            temperature=0.1,
-            max_tokens=1024,
-            top_p=1,
-            frequency_penalty=0,
-            presence_penalty=0,
-        )
-
-        response_text = response["choices"][0]["message"]["content"]
-        # Extracting retrospection
-        retrospection_match_sample = re.search(
-            r"```retrospection\s*\n(.*?)\n```", response_text, re.DOTALL
-        )
-        retrospection_text = (
-            retrospection_match_sample.group(1).strip()
-            if retrospection_match_sample
-            else None
-        )
-
-        choosen_match_sample = re.search(
-            r"```choosen\s*\n(.*?)\n```", response_text, re.DOTALL
-        )
-        choosen_text = (
-            choosen_match_sample.group(1).strip() if choosen_match_sample else None
-        )
-
-        query_match_sample = re.search(
-            r"```query-rewrite\s*\n(.*?)\n```", response_text, re.DOTALL
-        )
-        query_rewrite_text = (
-            query_match_sample.group(1).strip() if query_match_sample else None
-        )
-
-        self.console.print(
-            f"✅ [green]Memory Organized.[green]\n{response_text}\n-----\n"
-        )
-        return choosen_text, retrospection_text, query_rewrite_text
-
     def load_memories(self):
         json_files = [
             f
@@ -155,13 +106,8 @@ class MemoryBank:
             self.console.print(f"No memory to encode (no retrieved memory exists)")
             return
 
-        # "action": None,
-        #    "title": None,
-        #    "description": None,
-        #    "location": None,
-
         operation = retrospection_dict["action"]
-        if operation is str:
+        if isinstance(operation, str):
             operation = operation.lower()
         else:
             operation = "none"
@@ -190,7 +136,7 @@ class MemoryBank:
             # revise initial retrieved memory
             ## save revised memory (in disk)
             memory = {
-                "id": init_retrieved[0]["location"],
+                "id": init_retrieved[0]["id"],
                 "query": retrospection_dict["title"],
                 "retrospection": retrospection_dict["description"],
             }
@@ -260,7 +206,7 @@ class MemoryBank:
 
 
 class SelfDocAgent:
-    def __init__(self, model: str = "gpt-4-0613", memory: Optional[MemoryBank] = None):
+    def __init__(self, model: str = "gpt-4", memory: Optional[MemoryBank] = None):
         # print
         self.console = Console()
 
@@ -271,7 +217,7 @@ class SelfDocAgent:
 
         # init memory
         self.MEMORY_DIR_PATH = os.path.join(
-            "./memory", self.__class__.__name__, self.model
+            prj_root_path, "memory", self.__class__.__name__, self.model
         )
         if memory is None:
             self.load_memory()
@@ -354,12 +300,15 @@ class SelfDocAgent:
         else:
             raise f"Error during retrospection\ninit_retrieved : {init_retrieved}"
 
-        response = openai.ChatCompletion.create(
+        retrospector = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        response = retrospector.chat.completions.create(
             model=self.model,
             messages=[
                 {
                     "role": "system",
-                    "content": "You are an AI specialist, tasked with crafting concise retrospections from provided problem solutions. Your aim is to distill the essence of the problem and its solution, capturing the crux in just a few pivotal code lines. Here's how you should proceed:\n\n**Validation**: Your role here is to compare the current problem-solving approach, as described in the agent log, with the previously known solutions from prior experience. The objective is to determine if the current approach provides new knowledge or insights not present in the prior experiences. Also, assess if the solution relates to or overlaps with the extra memories that were initially deemed unrelated. Determine if the agent found new, valuable information during the problem-solving process or if there was a critical turning point where failure eventually led to a solution.\n\n**Action Decision**: Based on the validation, decide whether to:\n   - **Merge** the new insight with an existing memory or \n   - **Add** it as a new, standalone entry.\n   \nIndicate your choice as:\n```action\nMerge or Add\n```\n\n**Retrospection Crafting**:\n\na. Construct a succinct title that captures the core of the problem:\n```title\n(Concise Title)\n```\n\nb. Articulate a brief description. This should highlight the unique aspects of the solution, emphasizing any newfound insights. Incorporate the 1 to 3 pivotal code lines that were crucial to the solution within the description:\n```description\n(Brief Summary with Integrated Key Code Snippets)\n```\n\nc. If the decision is to merge, pinpoint the memory position (m) where the current insight is most related:\n```location\nm\n```\nIf the decision is to add as a new entry, indicate with `-1`.\n",
+                    "content": "You are an AI specialist, tasked with crafting concise retrospections from provided problem solutions. Your aim is to distill the essence of the problem and its solution, capturing the lesson you learned.\n\n**Validation**: Your role here is to compare the current problem-solving approach, as described in the agent log, with the previously known solutions from prior experience. The objective is to determine if the current approach provides new knowledge or insights not present in prior experiences. Also, assess if the solution relates to or overlaps with the extra memories that were initially deemed unrelated. Determine if the agent found new, valuable information during the problem-solving process or if there was a critical turning point where failure eventually led to a solution.\n\n**Action Decision**: Based on the validation, decide whether to:\n   - **Revise** the new insight with an existing memory or \n   - **Add** it as a new, standalone entry.\n   \nIndicate your choice as:\n```action\nRevise or Add\n```\n\n**Retrospection Crafting**:\n\na. Construct a succinct title that captures the core of the problem:\n```title\n(Concise Title)\n```\n\nb. Articulate a brief description. This should highlight the unique aspects of the solution, emphasizing any newfound insights. \ndescription:\n```description\n(Brief retrospection goes here)\n```\n\nc. If the decision is to merge, pinpoint the memory position (m) where the current insight is most related:\n```location\nm\n```\nIf the decision is to add as a new entry, indicate with `-1`.\nYou must format the output with the action, title, description, and location wrapped in triple backticks.(```)"
+                    if ORGANIZE_MEMORY
+                    else "You are an AI specialist, tasked with crafting concise retrospections from provided problem solutions. Your aim is to distill the essence of the problem and its solution, capturing the lesson you learned.\n\n**Validation**: Your role here is to compare the current problem-solving approach, as described in the agent log, with the previously known solutions from prior experience. The objective is to determine if the current approach provides new knowledge or insights not present in prior experiences. Also, assess if the solution relates to or overlaps with the extra memories that were initially deemed unrelated. Determine if the agent found new, valuable information during the problem-solving process or if there was a critical turning point where failure eventually led to a solution.\n\n**Action Decision**: Based on the validation, always decide to:\n   - **Add** the new insight as a new, standalone entry.\n\nIndicate your choice as:\n```action\nAdd\n```\n\n**Retrospection Crafting**:\n\na. Construct a succinct title that captures the core of the problem:\n```title\n(Concise Title)\n```\n\nb. Articulate a brief description. This should highlight the unique aspects of the solution, emphasizing any newfound insights. \ndescription:\n```description\n(Brief retrospection goes here)\n```\n\nc. Since the decision is always to add as a new entry, indicate with `-1`.\n```location\n-1\n```\nYou must format the output with the action, title, description, and location wrapped in triple backticks.(```)",
                 },
                 {"role": "user", "content": full_prompt},
             ],
@@ -368,9 +317,12 @@ class SelfDocAgent:
             top_p=0.9,
             frequency_penalty=0,
             presence_penalty=0,
-        )["choices"][0]["message"]["content"]
+        )
+        del retrospector
 
-        extracted = self.extract_retrospect(response)
+        if VERBOSE:
+            self.console.print(response.choices[0].message.content)
+        extracted = self.extract_retrospect(response.choices[0].message.content)
 
         if VERBOSE:
             self.console.print(Markdown(f"## Full Retrospection :\n\n"))
@@ -479,10 +431,17 @@ class SelfDocAgent:
                 VERBOSE=VERBOSE,
                 ORGANIZE_MEMORY=ORGANIZE_MEMORY,
             )
-            self.memories.encode(
-                init_retrieved=retrieved,
-                retrospection_dict=retrospection_dict,
-            )
+            if ORGANIZE_MEMORY:
+                self.memories.encode(
+                    init_retrieved=retrieved,
+                    retrospection_dict=retrospection_dict,
+                )
+            else:
+                retrospection_dict["action"] = "add"
+                self.memories.encode(
+                    init_retrieved=retrieved,
+                    retrospection_dict=retrospection_dict,
+                )
 
         return self.llm_interpreter.dialog
 
