@@ -9,7 +9,18 @@
 This project introduces a novel approach to enhancing language model performance by enabling past experience and memory management.
 
 #### Usage
-Quick start
+
+0. Installing the requirments
+```bash
+python -m pip install -r requirments
+```
+
+1. Setting the OPENAI_API
+```bash
+echo "OPENAI_API_KEY=<YOUR_API_KEY>" >> .env
+```
+
+2. Run the agent
 ```bash
 python -m agent.self_doc_agent
 ```
