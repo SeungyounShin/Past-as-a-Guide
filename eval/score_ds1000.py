@@ -38,7 +38,11 @@ if __name__ == "__main__":
 
     logs = [i for i in os.listdir(args.memory_dir) if i.endswith(".json")]
     logs = [log for log in logs if any(task in log for task in DS1000_ALL_TASKS)]
-    console.print(f"{args.memory_dir} : [bold green]{len(logs)}[/bold green]")
+    memories = [
+        i for i in os.listdir(args.memory_dir) if "memory_" in i and i.endswith(".json")
+    ]
+    console.print(f"All Problems : [bold green]{len(logs)}[/bold green]")
+    console.print(f"All memories : [bold green]{len(memories)}[/bold green]")
 
     # Create a table
     table = Table(show_header=True, header_style="bold magenta")
@@ -53,6 +57,18 @@ if __name__ == "__main__":
             if len(relevant_logs) > 0:
                 score = evaluate_log(relevant_logs) if relevant_logs else "N/A"
                 table.add_row(task, type, score)
+
+    # all score by task
+    for type_ in DS1000_ALL_TYPES:
+        type_log = [log for log in logs if type_ in log]
+        if len(type_log) <= 0:
+            continue
+        type_score = evaluate_log(type_log)
+        table.add_row("All", type_, type_score)
+
+    # whole score
+    all_score = evaluate_log(logs)
+    table.add_row("All", "All", all_score)
 
     # Print the table
     console.print(table)

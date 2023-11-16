@@ -111,8 +111,8 @@ class MemoryBank:
             operation = operation.lower()
         else:
             operation = "none"
-        if len(init_retrieved) == 0:
-            operation = "<add>"  # when no retrieved memory it should be new
+        # if len(init_retrieved) == 0:
+        #    operation = "<add>"  # when no retrieved memory it should be new
         if (retrospection_dict["title"] is None) or (
             len(retrospection_dict["title"]) == 0
         ):
@@ -225,6 +225,9 @@ class SelfDocAgent:
         else:
             self.memories = memory
 
+        self.document = ""
+        self.retrospect = ""
+
     def load_memory(self):
         self.memories = MemoryBank(MEMORY_DIR_PATH=self.MEMORY_DIR_PATH)
         return self.memories
@@ -253,7 +256,8 @@ class SelfDocAgent:
             "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "system_prompt": self.llm_interpreter.dialog[-1]["content"],
             "init_system_prompt": self.INIT_SYS_PROMPT,
-            # "document": self.document,
+            "retrieved": self.document,
+            "retrospect": self.retrospect,
         }
 
         MEMORY_FILE_PATH = os.path.join(
@@ -281,7 +285,7 @@ class SelfDocAgent:
             full_prompt = (
                 f"<From prior experience>:\n\nNone\n\n"
                 f"<Agent Log>:\n\n{full_traj}\n\n"
-                f"<Extra memories not chosen>:\n\nNone\n"
+                # f"<Extra memories not chosen>:\n\nNone\n"
             )
 
         elif (init_retrieved is not None) and len(init_retrieved) >= 1:
@@ -290,11 +294,11 @@ class SelfDocAgent:
             full_prompt = (
                 f"<From prior experience>:\n\nTitle :\n{retrospect['query']}\n\nContent :\n{retrospect['retrospection']}\n\n"
                 f"<Agent Log>:\n\n{full_traj}\n\n"
-                f"<Extra memories not chosen>:\n\n"
-                + "\n".join(
-                    f"[{index}]\n\nTitle: \n{memory['query']}\n\nContent :\n{memory['retrospection']}"
-                    for index, memory in enumerate(extra_mem)
-                )
+                # f"<Extra memories not chosen>:\n\n"
+                # + "\n".join(
+                #    f"[{index}]\n\nTitle: \n{memory['query']}\n\nContent :\n{memory['retrospection']}"
+                #    for index, memory in enumerate(extra_mem)
+                # )
             )
 
         else:
@@ -306,7 +310,7 @@ class SelfDocAgent:
             messages=[
                 {
                     "role": "system",
-                    "content": "You are an AI specialist, tasked with crafting concise retrospections from provided problem solutions. Your aim is to distill the essence of the problem and its solution, capturing the lesson you learned.\n\n**Validation**: Your role here is to compare the current problem-solving approach, as described in the agent log, with the previously known solutions from prior experience. The objective is to determine if the current approach provides new knowledge or insights not present in prior experiences. Also, assess if the solution relates to or overlaps with the extra memories that were initially deemed unrelated. Determine if the agent found new, valuable information during the problem-solving process or if there was a critical turning point where failure eventually led to a solution.\n\n**Action Decision**: Based on the validation, decide whether to:\n   - **Revise** the new insight with an existing memory or \n   - **Add** it as a new, standalone entry.\n   \nIndicate your choice as:\n```action\nRevise or Add\n```\n\n**Retrospection Crafting**:\n\na. Construct a succinct title that captures the core of the problem:\n```title\n(Concise Title)\n```\n\nb. Articulate a brief description. This should highlight the unique aspects of the solution, emphasizing any newfound insights. \ndescription:\n```description\n(Brief retrospection goes here)\n```\n\nc. If the decision is to merge, pinpoint the memory position (m) where the current insight is most related:\n```location\nm\n```\nIf the decision is to add as a new entry, indicate with `-1`.\nYou must format the output with the action, title, description, and location wrapped in triple backticks.(```)"
+                    "content": "As an AI specialist, your task is to create accurate and verified retrospection descriptions based on provided problem solutions. Your goal is to ensure that these retrospections are grounded in successfully executed solutions, serving as reliable guides for future problem-solving attempts.\n\nHere is you answer format : \n\n**Analyze Tool output**\nEnsure that the results from using the tool (python) align with the desired outcome.\n\n\n**Validation**: Assess if the Agent's log effectively addresses the user's queries based on the Analyze Tool Output. Verify the problem's resolution through the tool's output rather than theoretical assumptions.\n\n**Retrospection Draft** : If the tool's usage and results yield unexpected or different outcomes, consider if this should be documented for future reference. Include comparisons to prior experiences, highlighting what sets this new knowledge apart.\n\n**Action Decision**: Based on the validation, decide whether to:\n   - **Revise**  the new insight by incorporating it into an existing entry, ensuring that it is based on a verified and successful solution, or\n   - **Add** it as a new entry only if it represents a verified solution that provides new insights or approaches to problem-solving.\n   - **None** if no addition or revision is necessary.\n   \nIndicate your choice as:\n```action\nRevise, Add, or None\n```\n\n**Retrospection Crafting**:\n\na. Construct a succinct title that captures the core of the problem:\n```title\n(Concise Title)\n```\n\nb. Write a brief description, emphasizing the solution's unique aspects and any novel insights gained. This should be a succinct retrospection, capturing the essence of the solution.\ndescription:\n```description\n(Brief retrospection goes here)\n```\n\nYou must format the output with the action, title, and description wrapped in triple backticks.(```)"
                     if ORGANIZE_MEMORY
                     else "You are an AI specialist, tasked with crafting concise retrospections from provided problem solutions. Your aim is to distill the essence of the problem and its solution, capturing the lesson you learned.\n\n**Validation**: Your role here is to compare the current problem-solving approach, as described in the agent log, with the previously known solutions from prior experience. The objective is to determine if the current approach provides new knowledge or insights not present in prior experiences. Also, assess if the solution relates to or overlaps with the extra memories that were initially deemed unrelated. Determine if the agent found new, valuable information during the problem-solving process or if there was a critical turning point where failure eventually led to a solution.\n\n**Action Decision**: Based on the validation, always decide to:\n   - **Add** the new insight as a new, standalone entry.\n\nIndicate your choice as:\n```action\nAdd\n```\n\n**Retrospection Crafting**:\n\na. Construct a succinct title that captures the core of the problem:\n```title\n(Concise Title)\n```\n\nb. Articulate a brief description. This should highlight the unique aspects of the solution, emphasizing any newfound insights. \ndescription:\n```description\n(Brief retrospection goes here)\n```\n\nc. Since the decision is always to add as a new entry, indicate with `-1`.\n```location\n-1\n```\nYou must format the output with the action, title, description, and location wrapped in triple backticks.(```)",
                 },
@@ -322,6 +326,8 @@ class SelfDocAgent:
 
         if VERBOSE:
             self.console.print(response.choices[0].message.content)
+        if isinstance(response.choices[0].message.content, str):
+            self.retrospect = response.choices[0].message.content
         extracted = self.extract_retrospect(response.choices[0].message.content)
 
         if VERBOSE:
@@ -396,13 +402,16 @@ class SelfDocAgent:
                 extra_sys_prompt = (
                     f"\nFrom prior experience you documented :\n{document}"
                 )
+                self.document = document
                 if VERBOSE:
                     self.console.print(Markdown(f"## Document Retrieved\n\n{document}"))
             else:
                 extra_sys_prompt = ""
 
         self.llm_interpreter.dialog[-1]["content"] = (
-            self.INIT_SYS_PROMPT + extra_sys_prompt
+            self.INIT_SYS_PROMPT
+            + extra_sys_prompt
+            + "\n\nReflect on whether the past information is pertinent to the current question. Be cautious of interpreting and applying irrelevant information, as it might decrease accuracy. "
         )
 
         # step 2 : agent make trajectories
@@ -450,45 +459,7 @@ if __name__ == "__main__":
     agent = SelfDocAgent()
 
     problem_example = """
-Problem:
-I have a dataset :
-id    url     keep_if_dup
-1     A.com   Yes
-2     A.com   Yes
-3     B.com   No
-4     B.com   No
-5     C.com   No
-
-
-I want to remove duplicates, i.e. keep first occurence of "url" field, BUT  keep duplicates if the field "keep_if_dup" is YES.
-Expected output :
-id    url     keep_if_dup
-1     A.com   Yes
-2     A.com   Yes
-3     B.com   No
-5     C.com   No
-
-
-What I tried :
-Dataframe=Dataframe.drop_duplicates(subset='url', keep='first')
-
-
-which of course does not take into account "keep_if_dup" field. Output is :
-id    url     keep_if_dup
-1     A.com   Yes
-3     B.com   No
-5     C.com   No
-
-
-A:
-```python
-import pandas as pd
-
-
-df = pd.DataFrame({'url': ['A.com', 'A.com', 'A.com', 'B.com', 'B.com', 'C.com', 'B.com'],
-                   'keep_if_dup': ['Yes', 'Yes', 'No', 'No', 'No', 'No', 'Yes']})
-<Fill Solution Code>
-print(result)
+Can you draw cat with stable diffusion xl?
 ```
 
 """
@@ -502,5 +473,5 @@ print(result)
         MULTITURN=False,
     )
 
-    agent.save_traj("stablediffusion_1")
+    agent.save_traj("stablediffusion_xl_usage")
     agent.close()

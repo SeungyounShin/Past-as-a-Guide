@@ -3,6 +3,9 @@
 # logging
 *.log
 explore/*.log
+eval/*.log
+eval/KSAT2023_MATH
+eval/DS-1000
 
 # Ignore .env file
 .env
@@ -19,6 +22,7 @@ __pycache__/
 *.swo
 *.bak
 *.tmp
+*.pkl
 *.DS_Store
 *.egg-info/
 dist/
@@ -29,3 +33,5 @@ exec.py
 
 
 memory/*
+eval/human-eval
+eval/human-eval/*

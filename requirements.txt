@@ -6,3 +6,5 @@ retrying
 tenacity
 pyzmq
 tiktoken
+timeout_decorator
+datasets

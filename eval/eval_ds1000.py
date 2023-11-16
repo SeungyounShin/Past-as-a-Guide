@@ -1,5 +1,6 @@
 import sys, os, json
 import re
+import random
 from typing import List, Dict
 from agent.self_doc_agent import SelfDocAgent
 
@@ -9,6 +10,7 @@ from retrying import retry
 from tqdm import tqdm
 from rich.markdown import Markdown
 from rich import print
+from rich.progress import track
 import gc
 
 AGENT_MATCHER = {"SelfDocAgent": SelfDocAgent}
@@ -128,84 +130,95 @@ def run_ds1000(
     memory_bank = None
 
     # running task and types
+    # for task in tasks:
+    #    print(f"# Starting [{task}]")
+    #    for perturb_type in types:
+    #        print(f"## Perturb type [{perturb_type}]")
+
+    all_problems = list()
+    problem_id_in_task = list()
     for task in tasks:
-        print(f"# Starting [{task}]")
-        for perturb_type in types:
-            print(f"## Perturb type [{perturb_type}]")
+        all_problems += ds_data[task]
+        problem_id_in_task += list(range(len(ds_data[task])))
 
-            correct, idx = 0, 0
-            for counter, problem in enumerate(tqdm(ds_data[task])):
-                problem_perturbation_type = problem["perturbation_type"]
-                problem_text = problem["prompt"]
-                if problem_perturbation_type != perturb_type:
-                    print(
-                        f"Problem Number {counter}[{problem_perturbation_type}] skipped "
-                    )
-                    continue
+    combined = list(zip(all_problems, problem_id_in_task))
+    random.shuffle(combined)
+    all_problems, problem_id_in_task = zip(*combined)
+    all_problems = list(all_problems)
+    problem_id_in_task = list(problem_id_in_task)
 
-                if os.path.exists(
-                    f"./memory/{agent}/{agent_config['init']['model']}/{task}_{perturb_type}_{counter}_True.json"
-                ):
-                    correct += 1
-                    idx += 1
-                    print(
-                        f"Problem Number {counter}[{problem_perturbation_type}][green][correct][/green] **already evaluated** so skipped "
-                    )
-                    print(
-                        f"[bold blue]acc:[/bold blue] {correct}/{idx} = [bold green]{correct/idx:.2f}[/bold green]"
-                    )
-                    continue
-                elif os.path.exists(
-                    f"./memory/{agent}/{agent_config['init']['model']}/{task}_{perturb_type}_{counter}_False.json"
-                ):
-                    idx += 1
-                    print(
-                        f"Problem Number {counter}[{problem_perturbation_type}][red][wrong][/red] **already evaluated** so skipped "
-                    )
-                    print(
-                        f"[bold blue]acc:[/bold blue] {correct}/{idx} = [bold green]{correct/idx:.2f}[/bold green]"
-                    )
-                    continue
+    correct, idx = 0, 0
+    for problem_id, problem in tqdm(zip(problem_id_in_task, all_problems)):
+        task = problem["lib"]
+        problem_perturbation_type = problem["perturbation_type"]
+        problem_text = problem["prompt"]
+        if problem_perturbation_type not in types:
+            print(f"Problem Number {problem_id}[{problem_perturbation_type}] skipped ")
+            continue
 
-                print(
-                    f"[green]Problem Number {counter}[{problem_perturbation_type}] Start! [/green]"
-                )
-                idx += 1
+        if os.path.exists(
+            f"./memory/{agent}/{agent_config['init']['model']}/{task}_{problem_perturbation_type}_{problem_id}_True.json"
+        ):
+            correct += 1
+            idx += 1
+            print(
+                f"Problem Number {problem_id}[{problem_perturbation_type}][green][correct][/green] **already evaluated** so skipped "
+            )
+            print(
+                f"[bold blue]acc:[/bold blue] {correct}/{idx} = [bold green]{correct/idx:.2f}[/bold green]"
+            )
+            continue
+        elif os.path.exists(
+            f"./memory/{agent}/{agent_config['init']['model']}/{task}_{problem_perturbation_type}_{problem_id}_False.json"
+        ):
+            idx += 1
+            print(
+                f"Problem Number {problem_id}[{problem_perturbation_type}][red][wrong][/red] **already evaluated** so skipped "
+            )
+            print(
+                f"[bold blue]acc:[/bold blue] {correct}/{idx} = [bold green]{correct/idx:.2f}[/bold green]"
+            )
+            continue
 
-                agent_instance = AGENT_MATCHER[agent](
-                    **agent_config["init"], memory=memory_bank
-                )
-                formatted_question = format_ds1000_question(problem_text)
-                dialog = agent_instance.step(
-                    instruction=formatted_question,
-                    **agent_config["step"],
-                )
-                # resuse memory bank
-                if memory_bank is None:
-                    memory_bank = agent_instance.get_memory()
-                    memory_bank.update_memory()
+        print(
+            f"[green]Problem Number {problem_id}[{problem_perturbation_type}] Start! [/green]"
+        )
+        idx += 1
 
-                agent_instance.close()
-                gc.collect()
+        agent_instance = AGENT_MATCHER[agent](
+            **agent_config["init"], memory=memory_bank
+        )
+        formatted_question = format_ds1000_question(problem_text)
+        dialog = agent_instance.step(
+            instruction=formatted_question,
+            **agent_config["step"],
+        )
+        # resuse memory bank
+        if memory_bank is None:
+            memory_bank = agent_instance.get_memory()
+            memory_bank.update_memory()
 
-                print(
-                    f"agent done solving the task...\n[blue]Now extracting the infilling code lines[/blue]"
-                )
+        agent_instance.close()
+        gc.collect()
 
-                # extract answer for pair comparison
-                generated_code = answer_extractor(dialog)
-                print(f"Solution code extracted :\n```python\n{generated_code}\n```")
-                print(f"[bold]Start testing the solution...[/bold]")
-                is_correct = ds_data[task][counter].test(generated_code)
+        print(
+            f"agent done solving the task...\n[blue]Now extracting the infilling code lines[/blue]"
+        )
 
-                agent_instance.save_traj(
-                    traj_name=f"{task}_{perturb_type}_{counter}_{is_correct}.json"
-                )
+        # extract answer for pair comparison
+        generated_code = answer_extractor(dialog)
+        print(f"Solution code extracted :\n```python\n{generated_code}\n```")
+        print(f"[bold]Start testing the solution...[/bold]")
+        is_correct = ds_data[task][problem_id].test(generated_code)
 
-                correct = correct + 1 if is_correct else correct
-                print(
-                    f"[bold blue]acc:[/bold blue] {correct}/{idx} = [bold green]{correct/idx:.2f}[/bold green]"
-                )
+        agent_instance.save_traj(
+            traj_name=f"{task}_{problem_perturbation_type}_{problem_id}_{is_correct}.json"
+        )
+
+        correct = correct + 1 if is_correct else correct
+        print(
+            f"[bold blue]acc:[/bold blue] {correct}/{idx} = [bold green]{correct/idx:.2f}[/bold green]"
+        )
 
 
 if __name__ == "__main__":
@@ -214,9 +227,9 @@ if __name__ == "__main__":
             "model": "gpt-4",
         },
         "step": {
-            "USE_RETRIEVE": False,
-            "USE_ENCODE": False,
-            "ORGANIZE_MEMORY": False,
+            "USE_RETRIEVE": True,
+            "USE_ENCODE": True,
+            "ORGANIZE_MEMORY": True,
             "VERBOSE": True,
         },
     }
@@ -226,6 +239,7 @@ if __name__ == "__main__":
         agent_config=agent_config,
         tasks=DS1000_ALL_TASKS,
         types=[
-            "Difficult-Rewrite"
+            "Origin",
+            "Difficult-Rewrite",
         ],  # ["Surface", "Origin", "Semantic", "Difficult-Rewrite"]
     )
