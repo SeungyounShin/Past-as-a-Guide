@@ -35,3 +35,7 @@ exec.py
 memory/*
 eval/human-eval
 eval/human-eval/*
+
+!memory/SelfDocAgent/gpt-4-humaneval/*_True*
+!memory/SelfDocAgent/gpt-4-humaneval/*_False*
+
