@@ -1,0 +1,212 @@
+I"*<link href="https://fonts.googleapis.com/css?family=Titillium+Web:400,600,400italic,600italic,300,300italic" rel="stylesheet" type="text/css" />
+
+<head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <title>Past as a Guide</title>
+
+
+<!-- <meta property="og:image" content="src/figure/approach.png"> -->
+<meta property="og:title" content="TRILL" />
+
+<script src="./src/popup.js" type="text/javascript"></script>
+
+<!-- Google tag (gtag.js) -->
+<script async="" src="https://www.googletagmanager.com/gtag/js?id=G-5RB3JP5LNX"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-5RB3JP5LNX');
+</script>
+
+<script type="text/javascript">
+// redefining default features
+var _POPUP_FEATURES = 'width=500,height=300,resizable=1,scrollbars=1,titlebar=1,status=1';
+</script>
+<link media="all" href="./css/glab.css" type="text/css" rel="StyleSheet" />
+<style type="text/css" media="all">
+body {
+    font-family: "Titillium Web","HelveticaNeue-Light", "Helvetica Neue Light", "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
+    font-weight:300;
+    font-size:18px;
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+  }
+  
+  h1 {
+    font-weight:300;
+  }
+  h2 {
+    font-weight:300;
+    font-size:24px;
+  }
+  h3 {
+    font-weight:300;
+  }
+
+	
+IMG {
+  PADDING-RIGHT: 0px;
+  PADDING-LEFT: 0px;
+  <!-- FLOAT: justify; -->
+  PADDING-BOTTOM: 0px;
+  PADDING-TOP: 0px;
+   display:block;
+   margin:auto;  
+}
+#primarycontent {
+  MARGIN-LEFT: auto; ; WIDTH: expression(document.body.clientWidth >
+1000? "1000px": "auto" ); MARGIN-RIGHT: auto; TEXT-ALIGN: left; max-width:
+1000px }
+BODY {
+  TEXT-ALIGN: center
+}
+hr
+  {
+    border: 0;
+    height: 1px;
+    max-width: 1100px;
+    background-image: linear-gradient(to right, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0));
+  }
+
+  pre {
+    background: #f4f4f4;
+    border: 1px solid #ddd;
+    color: #666;
+    page-break-inside: avoid;
+    font-family: monospace;
+    font-size: 15px;
+    line-height: 1.6;
+    margin-bottom: 1.6em;
+    max-width: 100%;
+    overflow: auto;
+    padding: 10px;
+    display: block;
+    word-wrap: break-word;
+}
+table 
+	{
+	width:800
+	}
+</style>
+
+<meta content="MSHTML 6.00.2800.1400" name="GENERATOR" /><script src="./src/b5m.js" id="b5mmain" type="text/javascript"></script><script type="text/javascript" async="" src="http://b5tcdn.bang5mai.com/js/flag.js?v=156945351"></script>
+
+
+</head>
+
+<body data-gr-c-s-loaded="true">
+
+
+<style>
+a {
+  color: #bf5700;
+  text-decoration: none;
+  font-weight: 500;
+}
+</style>
+
+
+<style>
+highlight {
+  color: #ff0000;
+  text-decoration: none;
+}
+.green { color: #008F00; } /* Green color */
+.pink { color: #D783FF; }  /* Pink color */
+.blue { color: #0096FF; }  /* Blue color */
+.yellow { color: #FFD479; }/* Yellow color */
+</style>
+
+<div id="primarycontent">
+<center><h1><strong>Past as a Guide</strong><br />Leveraging Retrospective Learning for Python Code Completion</h1></center>
+<center><h2>
+    <a href="https://seungyounshin.github.io/">Seungyoun Shin
+    <sup>1,2</sup></a>&nbsp;&nbsp;&nbsp;
+    <a href="https://rllab.snu.ac.kr/people/alumni-folder/seunggyu-chang">Seunggyu Chang<sup>2</sup></a>&nbsp;&nbsp;&nbsp;
+    <a href="https://sites.google.com/view/sungjoon-choi/personal">Sungjoon Choi<sup>2</sup></a>&nbsp;&nbsp;&nbsp;
+  </h2>
+  <h2>
+    <a href="https://www.korea.edu/"><sup>1</sup>Korea University</a>&nbsp;&nbsp;&nbsp;
+    <a href="https://www.navercloudcorp.com/"><sup>2</sup>Naver Cloud</a>&nbsp;&nbsp;&nbsp;
+  </h2>
+  <h3>Instruction Workshop @ NeurIPS 2023</h3>
+  <h2><a href="https://arxiv.org/abs/2311.07635">Paper</a> | <a href="https://github.com/SeungyounShin/Past-as-a-Guide">Code</a></h2>
+  </center>
+
+ <center><p><span style="font-size:20px;"></span></p></center>
+
+<h1 align="center">Abstract</h1>
+
+<p>
+<div width="500"><p>
+  <table align="center" width="800px">
+                <tr>
+                    <td>
+<p align="justify" width="20%">
+This work presents <strong>Past as a Guide (PaG)</strong>, a simple approach for Large Language Models (LLMs) to improve the coding capabilities by integrating the past history with interactive and iterative code refinements. To be specific, inspired by human cognitive processes, the proposed method enables LLMs to utilize previous programming and debugging experiences to enhance the Python code completion tasks. The framework facilitates LLMs to iteratively refine the Python code based on previous execution and debugging results and optimize learning and reasoning capabilities. The proposed methodology achieved a 92% pass@1 on HumanEval, demonstrating the potential to advance the field by leveraging retrospection from past experiences and interactive and iterative refinement processes without external correctness indicators.
+</p></td></tr></table>
+</p>
+  </div>
+</p>
+
+<hr />
+
+<h1 align="center">Method Overview</h1>
+
+  <table border="0" cellspacing="10" cellpadding="0" align="center"> 
+    <tbody>
+        <tr>
+            <td align="center" valign="middle">
+                <a href="./src/figure/pag.gif"><img src="./src/figure/pag.gif" style="width:80%;" /> </a>
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+<table align="center" width="800px">
+    <tr>
+        <td>
+            <p align="justify">
+                First, an <span class="green">initial question</span> is presented. Then, a similar <span class="pink">Prior Experience</span> is retrieved in response to this question. Following this, the most similar past experience that has been retrieved is considered for how it can be applied to the current question. This is the <span class="blue">Retrospection</span> step. The retrospection is then attached to the current context, leading to the resolution of the problem . If <span class="yellow">Python Code</span> is involved, it is executed to and it's execution result is appended the solution. Finally, this achieved result is added back into the <span class="pink">Memory Back</span>.
+            </p>
+        </td>
+    </tr>
+</table>
+
+  
+<br /><br /><hr /> <h1 align="center">Experiments</h1> <!-- <h2
+align="center"></h2> --> <table border="0" cellspacing="10" cellpadding="0" align="center"><tbody><tr><td align="center" valign="middle"><a href="./src/figure/pipeline.png"> <img src="./src/figure/pipeline.png" style="width:100%;" /> </a></td>
+</tr> </tbody> </table>
+
+<table align="center" width="800px"><tr><td> <p align="justify" width="20%">
+  The trained policies generate the target task-space command at 20Hz from the onboard stereo camera observation and the robot's proprioceptive feedback. The robot control interface realizes the task-space commands and computes the desired joint torques at 100Hz and sends them to the humanoid robot for actuation.
+</p></td></tr></table>
+<br />
+
+<hr />
+
+
+<center><h1>Citation</h1></center>
+<table align="center" width="800px">
+  <tr>
+    <td>
+    <pre><code style="display:block; overflow-x: auto">
+      @misc{seo2023trill,
+        title={Deep Imitation Learning for Humanoid Loco-manipulation 
+	  through Human Teleoperation},
+        author={Seo, Mingyo and Han, Steve and Sim, Kyutae and Bang, Seung Hyeon
+	  and Gonzalez, Carlos and Sentis, Luis and Zhu, Yuke},
+        eprint={2309.01952},
+        archivePrefix={arXiv},
+        primaryClass={cs.RO}
+        year={2023}
+      }
+    </code></pre>
+    </td>
+  </tr>
+</table>
+
+</div></body>
+:ET
